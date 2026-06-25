@@ -31,3 +31,14 @@ export const indexerCursor = pgTable("indexer_cursor", {
   lastLedger: integer("last_ledger").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const reconciliationReports = pgTable("reconciliation_reports", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  totalPredictions: integer("total_predictions").notNull(),
+  matchedPredictions: integer("matched_predictions").notNull(),
+  unmatchedPredictions: integer("unmatched_predictions").notNull(),
+  discrepancies: jsonb("discrepancies").notNull(),
+  status: text("status").notNull(),
+});

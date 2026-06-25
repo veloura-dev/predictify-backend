@@ -15,6 +15,8 @@ const schema = z.object({
   PREDICTIFY_CONTRACT_ID: z.string().min(1),
   INDEXER_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(5000),
   INDEXER_START_LEDGER: z.coerce.number().int().nonnegative().default(0),
+  RECONCILIATION_ENABLED: z.coerce.boolean().default(true),
+  RECONCILIATION_SCHEDULE: z.string().default("0 2 * * *"),
 });
 
 export const env = schema.parse(process.env);
