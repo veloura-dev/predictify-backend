@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, integer, boolean, jsonb, unique } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, timestamp, integer, boolean, jsonb, index } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -35,13 +35,19 @@ export const indexerCursor = pgTable("indexer_cursor", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const refreshTokens = pgTable("refresh_tokens", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  tokenHash: text("token_hash").notNull().unique(),
-  familyId: uuid("family_id").notNull(),
-  parentId: uuid("parent_id").references((): any => refreshTokens.id, { onDelete: "cascade" }),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-  revokedAt: timestamp("revoked_at", { withTimezone: true }),
-});
-
+// Raw Soroban contract events ingested by the indexer worker. The event `id`
+// returned by the RPC is globally unique and used as the primary key so that
+// re-fetching an overlapping ledger range is naturally idempotent.
+export const contractEvents = pgTable("contract_events", {
+  id: text("id").primaryKey(),
+  ledger: integer("ledger").notNull(),
+  contractId: text("contract_id"),
+  type: text("type").notNull(),
+  txHash: text("tx_hash").notNull(),
+  ledgerClosedAt: timestamp("ledger_closed_at", { withTimezone: true }).notNull(),
+  topic: jsonb("topic").notNull(),
+  value: jsonb("value").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  ledgerIdx: index("contract_events_ledger_idx").on(t.ledger),
+}));
