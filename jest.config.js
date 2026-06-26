@@ -11,8 +11,7 @@ process.env.PREDICTIFY_CONTRACT_ID = "CABCDEF1234567890";
 module.exports = {
   preset: "ts-jest",
   testEnvironment: "node",
-  // Run before every test file to populate required process.env variables.
-  setupFiles: ["./tests/setup.ts"],
+  setupFiles: ["<rootDir>/tests/setup.ts"],
   testMatch: ["**/tests/**/*.test.ts"],
   setupFiles: ["./tests/setup.ts"],
   collectCoverageFrom: ["src/**/*.ts"],

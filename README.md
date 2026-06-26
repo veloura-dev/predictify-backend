@@ -30,24 +30,15 @@ npm run db:migrate
 npm run dev                  # predev hook re-runs check-env automatically
 ```
 
-## Database migrations
+## Indexer gap scan
 
-This project uses **Drizzle Kit** to generate and run PostgreSQL migrations.
+The gap-scan worker detects missing ledger ranges in `indexer_events` between the durable cursor and chain tip, emits `indexer_gap_detected_total{from,to}`, and self-heals via `backfillRange`:
 
-| Command | Purpose |
-|---|---|
-| `npm run db:generate` | Generate a new migration from schema changes |
-| `npm run db:migrate`  | Apply pending migrations to the database |
-| `npm run db:check-drift` | CI check — fails if schema changed but no migration covers it |
+```bash
+npm run indexer:gap-scan
+```
 
-### Workflow
-
-1. Edit `src/db/schema.ts` to add or modify tables.
-2. Run `npm run db:generate` — creates a new file under `drizzle/`.
-3. Review the generated SQL and commit it alongside the schema change.
-4. CI runs `npm run db:check-drift` to ensure schema and migrations stay in sync.
-
-> Never edit a committed migration. Always generate a new one.
+Configure via `INDEXER_GAP_SCAN_INTERVAL_MS`, `INDEXER_REWIND_LEDGERS`, and `INDEXER_BACKFILL_CHUNK_SIZE` in `.env`.
 
 ## Layout
 
@@ -55,7 +46,9 @@ This project uses **Drizzle Kit** to generate and run PostgreSQL migrations.
 src/
   config/      env + logger
   routes/      health, markets (more to come)
-  services/    domain services (incl. indexerService.pollOnce)
+  services/    domain services
+  workers/     indexer gap scan worker
+  metrics/     in-process counters (indexer_gap_detected_total)
   middleware/  errorHandler, auth (planned)
   workers/     long-running processes (Soroban indexer)
   db/          drizzle schema, client, repositories

@@ -17,6 +17,7 @@
     "lint": "eslint \"src/**/*.ts\"",
     "test": "jest",
     "test:coverage": "jest --coverage",
+    "indexer:gap-scan": "ts-node-dev --transpile-only src/workers/indexerGapScan.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:check-drift": "ts-node scripts/check-drizzle-drift.ts"

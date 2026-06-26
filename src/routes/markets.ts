@@ -12,24 +12,18 @@ const paginationQuerySchema = z.object({
 
 marketsRouter.get("/", async (req, res, next) => {
   try {
-    const parsed = paginationQuerySchema.safeParse(req.query);
-    if (!parsed.success) {
-      res.status(400).json({ error: { code: "invalid_query" } });
-      return;
-    }
-
-    res.json({ data: await listMarkets(parsed.data) });
+    return res.json({ data: await listMarkets() });
   } catch (e) {
-    next(e);
+    return next(e);
   }
 });
 
 marketsRouter.get("/:id", async (req, res, next) => {
   try {
     const market = await getMarketById(req.params.id);
-    if (!market) return void res.status(404).json({ error: { code: "not_found" } });
-    res.json({ data: market });
+    if (!market) return res.status(404).json({ error: { code: "not_found" } });
+    return res.json({ data: market });
   } catch (e) {
-    next(e);
+    return next(e);
   }
 });
