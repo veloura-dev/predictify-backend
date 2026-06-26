@@ -4,6 +4,7 @@ import { env } from "../config/env";
 
 export interface AuthenticatedRequest extends Request {
   user?: {
+    id: string;
     stellarAddress: string;
   };
 }
@@ -33,7 +34,7 @@ export function requireAdmin(req: AuthenticatedRequest, res: Response, next: Nex
       return;
     }
 
-    req.user = { stellarAddress };
+    req.user = { id: stellarAddress, stellarAddress };
     next();
   } catch (err) {
     res.status(401).json({ error: { code: "unauthorized" } });

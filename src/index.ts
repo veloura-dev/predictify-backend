@@ -1,41 +1,19 @@
 import express from "express";
 import helmet from "helmet";
 import pinoHttp from "pino-http";
-import { v4 as uuidv4 } from "uuid";
 import { env } from "./config/env";
 import { logger } from "./config/logger";
 import { healthRouter } from "./routes/health";
 import { marketsRouter } from "./routes/markets";
 import { usersRouter } from "./routes/users";
+import { authRouter } from "./routes/auth";
+import { metricsMiddleware } from "./metrics/httpMetrics";
+import { idempotency } from "./middleware/idempotency";
+import { stopScheduler } from "./services/scheduler";
 import { errorHandler } from "./middleware/errorHandler";
 import { connectWithRetry, closeDb } from "./db/client";
 
-export interface AppDeps {
-  /**
-   * Webhook store + dispatcher. Optional so tests can inject an in-memory
-   * implementation. When omitted, production wiring (drizzle + fetch) is built
-   * lazily — importing this module never opens a DB connection by side effect.
-   */
-  webhooks?: AdminWebhookDeps;
-}
-
-function buildProductionWebhookDeps(): AdminWebhookDeps {
-  // Imported lazily so test/tooling imports don't require a live database.
-  const { getDb } = require("./db/client") as typeof import("./db/client");
-  const { DrizzleWebhookStore } =
-    require("./services/drizzleWebhookStore") as typeof import("./services/drizzleWebhookStore");
-  const { WebhookDispatcher } =
-    require("./services/webhookDispatcher") as typeof import("./services/webhookDispatcher");
-
-  const store = new DrizzleWebhookStore(getDb());
-  const dispatcher = new WebhookDispatcher({
-    store,
-    signingSecret: env.WEBHOOK_SIGNING_SECRET,
-  });
-  return { store, dispatcher };
-}
-
-export function createApp(deps: AppDeps = {}): express.Express {
+export function createApp(): express.Express {
   const app = express();
 
   app.use(helmet());
@@ -54,6 +32,7 @@ export function createApp(deps: AppDeps = {}): express.Express {
       : next(),
   );
 
+  app.use("/api/auth", authRouter);
   app.use("/api/markets", marketsRouter);
   app.use("/api/users", usersRouter);
 

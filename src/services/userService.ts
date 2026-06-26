@@ -1,4 +1,4 @@
-import { db } from "../db/connection";
+import { db } from "../db";
 import { users, predictions, markets } from "../db/schema";
 import { and, eq, desc, lt } from "drizzle-orm";
 
@@ -38,7 +38,7 @@ export async function getUserPredictions(
 
   // Apply cursor for pagination (keysett pagination on created_at DESC, id)
   if (cursor) {
-    const [cursorTime, cursorId] = cursor.split("|");
+    const [cursorTime] = cursor.split("|");
     whereConditions.push(lt(predictions.createdAt, new Date(cursorTime)));
   }
 

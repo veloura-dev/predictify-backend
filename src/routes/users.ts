@@ -41,11 +41,12 @@ usersRouter.get("/:address/predictions", async (req, res, next) => {
       cursor: query.cursor,
     });
 
-    res.json({
+    return res.json({
       data: result.data,
       nextCursor: result.nextCursor,
     });
   } catch (e) {
     next(e);
+    return;
   }
 });

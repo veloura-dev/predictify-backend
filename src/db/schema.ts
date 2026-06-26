@@ -1,9 +1,16 @@
 import { pgTable, uuid, text, timestamp, integer, boolean, jsonb, index } from "drizzle-orm/pg-core";
-import { desc } from "drizzle-orm";
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   stellarAddress: text("stellar_address").notNull().unique(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const authChallenges = pgTable("auth_challenges", {
+  nonce: text("nonce").primaryKey(),
+  stellarAddress: text("stellar_address").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  used: boolean("used").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -103,18 +110,9 @@ export const predictions = pgTable("predictions", {
   userId: uuid("user_id").notNull().references(() => users.id),
   outcome: text("outcome").notNull(),
   amount: text("amount").notNull(),
+  status: text("status").notNull().default("pending"),
   /** Set to "won" or "lost" in the same transaction that resolves the parent market. */
   result: text("result"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
-
-export const webhookSubscriptions = pgTable("webhook_subscriptions", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  url: text("url").notNull(),
-  /** HMAC-SHA256 signing secret — included in X-Predictify-Signature header. */
-  secret: text("secret").notNull(),
-  /** JSON array of event names this subscriber wants, e.g. ["market.resolved"]. */
-  events: jsonb("events").notNull().$type<string[]>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
