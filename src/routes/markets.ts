@@ -12,8 +12,8 @@ marketsRouter.get("/", async (_req, res, next) => {
 
 marketsRouter.get("/:id", async (req, res, next) => {
   try {
-    const market = await getMarketById(req.params.id);
-    if (!market) return next(AppError.notFound("Market not found"));
+    const market = await getMarketById(req.params.id as string);
+    if (!market) { res.status(404).json({ error: { code: "not_found" } }); return; }
     res.json({ data: market });
   } catch (e) { next(e); }
 });

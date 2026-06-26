@@ -35,19 +35,13 @@ export const indexerCursor = pgTable("indexer_cursor", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-// Raw Soroban contract events ingested by the indexer worker. The event `id`
-// returned by the RPC is globally unique and used as the primary key so that
-// re-fetching an overlapping ledger range is naturally idempotent.
-export const contractEvents = pgTable("contract_events", {
-  id: text("id").primaryKey(),
-  ledger: integer("ledger").notNull(),
-  contractId: text("contract_id"),
-  type: text("type").notNull(),
-  txHash: text("tx_hash").notNull(),
-  ledgerClosedAt: timestamp("ledger_closed_at", { withTimezone: true }).notNull(),
-  topic: jsonb("topic").notNull(),
-  value: jsonb("value").notNull(),
+export const authChallenges = pgTable("auth_challenges", {
+  nonce: text("nonce").primaryKey(),
+  stellarAddress: text("stellar_address").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  used: boolean("used").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => ({
-  ledgerIdx: index("contract_events_ledger_idx").on(t.ledger),
-}));
+});
+
+export type AuthChallenge = typeof authChallenges.$inferSelect;
+export type NewAuthChallenge = typeof authChallenges.$inferInsert;
