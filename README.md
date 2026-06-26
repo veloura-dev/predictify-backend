@@ -30,30 +30,24 @@ npm run db:migrate
 npm run dev                  # predev hook re-runs check-env automatically
 ```
 
-`check-env` also runs automatically before `npm start` (production).  
-If a required variable is missing you get a readable bullet list instead of a stack trace:
+## Database migrations
 
-```
-✖  Environment validation failed:
+This project uses **Drizzle Kit** to generate and run PostgreSQL migrations.
 
-  • JWT_SECRET: String must contain at least 32 character(s)
-  • DATABASE_URL: Invalid url
-
-Copy .env.example → .env and set the values marked as required.
-```
-
-### Environment variables
-
-Every variable is documented in `.env.example` and validated by the zod schema in
-`src/config/env-schema.ts`.  Required variables (no default):
-
-| Variable | Description |
+| Command | Purpose |
 |---|---|
-| `DATABASE_URL` | PostgreSQL connection string |
-| `JWT_SECRET` | Random secret ≥ 32 chars (`openssl rand -hex 32`) |
-| `SOROBAN_RPC_URL` | Soroban RPC endpoint |
-| `HORIZON_URL` | Horizon REST API endpoint |
-| `PREDICTIFY_CONTRACT_ID` | Deployed contract address (56-char Strkey) |
+| `npm run db:generate` | Generate a new migration from schema changes |
+| `npm run db:migrate`  | Apply pending migrations to the database |
+| `npm run db:check-drift` | CI check — fails if schema changed but no migration covers it |
+
+### Workflow
+
+1. Edit `src/db/schema.ts` to add or modify tables.
+2. Run `npm run db:generate` — creates a new file under `drizzle/`.
+3. Review the generated SQL and commit it alongside the schema change.
+4. CI runs `npm run db:check-drift` to ensure schema and migrations stay in sync.
+
+> Never edit a committed migration. Always generate a new one.
 
 ## Layout
 
@@ -66,8 +60,10 @@ src/
   workers/     long-running processes (Soroban indexer)
   db/          drizzle schema, client, repositories
 tests/         jest tests
-docs/          architecture docs
-scripts/       dev helpers
+drizzle/       generated migrations + meta
+scripts/       dev helpers (check-drizzle-drift.ts)
+.github/
+  workflows/   CI pipeline (lint, test, drift check, migrate)
 ```
 
 ## Roadmap
