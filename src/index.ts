@@ -6,7 +6,7 @@ import { env } from "./config/env";
 import { logger } from "./config/logger";
 import { healthRouter } from "./routes/health";
 import { marketsRouter } from "./routes/markets";
-import { adminUsersRouter } from "./routes/adminUsers";
+import { usersRouter } from "./routes/users";
 import { errorHandler } from "./middleware/errorHandler";
 import { connectWithRetry, closeDb } from "./db/client";
 
@@ -55,17 +55,7 @@ export function createApp(deps: AppDeps = {}): express.Express {
   );
 
   app.use("/api/markets", marketsRouter);
-  app.use("/api/admin/users", adminUsersRouter);
-
-  app.get("/metrics", async (_req, res) => {
-    const metricsAuthToken = process.env.METRICS_AUTH_TOKEN;
-    if (metricsAuthToken && _req.headers.authorization !== `Bearer ${metricsAuthToken}`) {
-      res.status(401).send("Unauthorized");
-      return;
-    }
-    res.set("Content-Type", register.contentType);
-    res.send(await register.metrics());
-  });
+  app.use("/api/users", usersRouter);
 
   app.use(errorHandler);
   return app;

@@ -1,14 +1,5 @@
-import {
-  pgTable,
-  uuid,
-  text,
-  timestamp,
-  integer,
-  boolean,
-  jsonb,
-  uniqueIndex,
-  index,
-} from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, timestamp, integer, boolean, jsonb, index } from "drizzle-orm/pg-core";
+import { desc } from "drizzle-orm";
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -93,39 +84,26 @@ export const markets = pgTable("markets", {
   archived: boolean("archived").notNull().default(false),
 });
 
-export const predictions = pgTable("predictions", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  marketId: text("market_id").notNull().references(() => markets.id),
-  userId: uuid("user_id").notNull().references(() => users.id),
-  outcome: text("outcome").notNull(),
-  amount: text("amount").notNull(),
-  txHash: text("tx_hash").notNull(),
-  status: text("status").notNull().default("pending"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
-  uniqueUserMarketTx: unique().on(table.userId, table.marketId, table.txHash),
-}));
-
-// Winnings claims submitted by users after a market resolves in their favour
-export const claims = pgTable("claims", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull().references(() => users.id),
-  marketId: text("market_id").notNull().references(() => markets.id),
-  amount: text("amount").notNull(),
-  // pending | paid | rejected
-  status: text("status").notNull().default("pending"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
-
-export const disputes = pgTable("disputes", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  marketId: text("market_id").notNull().references(() => markets.id),
-  openedBy: uuid("opened_by").notNull().references(() => users.id),
-  reason: text("reason").notNull(),
-  evidenceUri: text("evidence_uri"),
-  status: text("status").notNull().default("open"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const predictions = pgTable(
+  "predictions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    marketId: text("market_id").notNull().references(() => markets.id),
+    userId: uuid("user_id").notNull().references(() => users.id),
+    outcome: text("outcome").notNull(),
+    amount: text("amount").notNull(),
+    status: text("status").notNull().default("pending"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    userStatusIdx: index("user_status_idx").on(
+      table.userId,
+      table.status,
+      desc(table.createdAt),
+      table.id
+    ),
+  })
+);
 
 export const indexerCursor = pgTable("indexer_cursor", {
   id: integer("id").primaryKey(),
