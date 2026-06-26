@@ -8,7 +8,8 @@ import { healthRouter } from "./routes/health";
 import { marketsRouter } from "./routes/markets";
 import { adminUsersRouter } from "./routes/adminUsers";
 import { errorHandler } from "./middleware/errorHandler";
-import { initializeScheduler, stopScheduler } from "./services/scheduler";
+import { idempotency } from "./middleware/idempotency";
+import { startIdempotencySweeper } from "./jobs/idempotencySweeper";
 
 export interface AppDeps {
   /**
@@ -84,6 +85,16 @@ export function createApp(deps: AppDeps = {}): express.Express {
   });
 
   app.use("/health", healthRouter);
+
+  // Idempotency guard for all state-mutating routes under /api.
+  // Must be mounted before the routers it protects.
+  const mutationMethods = ["POST", "PATCH"] as const;
+  app.use("/api", (req, res, next) =>
+    mutationMethods.includes(req.method as (typeof mutationMethods)[number])
+      ? idempotency(req, res, next)
+      : next(),
+  );
+
   app.use("/api/markets", marketsRouter);
   app.use("/api/admin/users", adminUsersRouter);
 
@@ -93,10 +104,7 @@ export function createApp(deps: AppDeps = {}): express.Express {
 
 if (require.main === module) {
   const app = createApp();
-  
-  // Initialize scheduled tasks
-  initializeScheduler();
-  
+  startIdempotencySweeper();
   app.listen(env.PORT, () => {
     logger.info({ port: env.PORT, env: env.NODE_ENV }, "predictify-backend listening");
   });

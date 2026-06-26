@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, integer, boolean, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, timestamp, integer, boolean, jsonb, index } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -133,23 +133,24 @@ export const indexerCursor = pgTable("indexer_cursor", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-// One row per on-chain Soroban event seen for the Predictify contract.
-// Unique index on (ledger, tx_hash, op_index) is the deduplication key.
-export const indexerEvents = pgTable(
-  "indexer_events",
+/**
+ * Stores idempotency keys for POST/PATCH mutation replay.
+ * Rows are purged after 24 h by the sweeper job.
+ */
+export const idempotencyRecords = pgTable(
+  "idempotency_records",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    eventId: text("event_id").notNull(),
-    ledger: integer("ledger").notNull(),
-    txHash: text("tx_hash").notNull(),
-    opIndex: integer("op_index").notNull(),
-    contractId: text("contract_id").notNull(),
-    topicXdr: jsonb("topic_xdr").notNull().$type<string[]>(),
-    valueXdr: text("value_xdr").notNull(),
-    ledgerClosedAt: timestamp("ledger_closed_at", { withTimezone: true }).notNull(),
+    key: text("key").primaryKey(),
+    /** sha256 hex of the request body at first call */
+    fingerprint: text("fingerprint").notNull(),
+    /** HTTP status code of the original response */
+    responseStatus: integer("response_status").notNull(),
+    /** Serialised response body */
+    responseBody: jsonb("response_body").notNull(),
+    /** Optional headers to replay (e.g. Location) */
+    responseHeaders: jsonb("response_headers").notNull().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   },
-  (t) => ({
-    eventKey: uniqueIndex("indexer_events_ledger_tx_op_idx").on(t.ledger, t.txHash, t.opIndex),
-  }),
+  (t) => ({ idempotencyExpiresIdx: index("idempotency_expires_idx").on(t.expiresAt) }),
 );
