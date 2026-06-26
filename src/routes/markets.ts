@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { listMarkets, getMarketById } from "../services/marketService";
+import { disputesRouter } from "./disputes";
 
 export const marketsRouter = Router();
 
@@ -16,3 +17,5 @@ marketsRouter.get("/:id", async (req, res, next) => {
     return res.json({ data: market });
   } catch (e) { return next(e); }
 });
+
+marketsRouter.use("/:id/disputes", disputesRouter);
