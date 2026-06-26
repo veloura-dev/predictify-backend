@@ -1,24 +1,19 @@
 /**
- * Jest global setup — runs before every test file.
- *
- * Sets the minimum required environment variables so that `src/config/env.ts`
- * (a Zod schema.parse at module load time) does not throw during tests.
- * Real integration tests should override these with actual values or use a
- * dedicated .env.test file loaded via a custom jest resolver.
+ * Jest setup: provide the env vars that `src/config/env.ts` validates at import
+ * time. Without this, simply importing the app throws a zod error (the starter's
+ * own health test fails in a clean clone). Values are dummy/test-only.
  */
-
-// Only set variables that are absent so real values in the shell take precedence.
-const defaults: Record<string, string> = {
-  NODE_ENV: "test",
-  DATABASE_URL: "postgres://postgres:postgres@localhost:5432/predictify_test",
-  JWT_SECRET: "test-secret-at-least-32-characters-long",
-  SOROBAN_RPC_URL: "https://soroban-testnet.stellar.org",
-  HORIZON_URL: "https://horizon-testnet.stellar.org",
-  PREDICTIFY_CONTRACT_ID: "CTEST",
-};
-
-for (const [key, value] of Object.entries(defaults)) {
-  if (!process.env[key]) {
-    process.env[key] = value;
-  }
-}
+process.env.NODE_ENV = "test";
+process.env.LOG_LEVEL = "silent";
+process.env.DATABASE_URL =
+  process.env.DATABASE_URL ?? "postgres://postgres:postgres@localhost:5432/predictify_test";
+process.env.JWT_SECRET =
+  process.env.JWT_SECRET ?? "test-jwt-secret-at-least-32-bytes-long-000000";
+process.env.JWT_ISSUER = process.env.JWT_ISSUER ?? "predictify";
+process.env.JWT_AUDIENCE = process.env.JWT_AUDIENCE ?? "predictify-app";
+process.env.WEBHOOK_SIGNING_SECRET =
+  process.env.WEBHOOK_SIGNING_SECRET ?? "test-webhook-signing-secret";
+process.env.SOROBAN_RPC_URL =
+  process.env.SOROBAN_RPC_URL ?? "https://soroban-testnet.stellar.org";
+process.env.HORIZON_URL = process.env.HORIZON_URL ?? "https://horizon-testnet.stellar.org";
+process.env.PREDICTIFY_CONTRACT_ID = process.env.PREDICTIFY_CONTRACT_ID ?? "CTEST";

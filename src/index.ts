@@ -6,12 +6,36 @@ import { env } from "./config/env";
 import { logger } from "./config/logger";
 import { healthRouter } from "./routes/health";
 import { marketsRouter } from "./routes/markets";
-import { leaderboardRouter } from "./routes/leaderboard";
-import { reconciliationRouter } from "./routes/reconciliation";
+import { createAdminWebhooksRouter, type AdminWebhookDeps } from "./routes/adminWebhooks";
 import { errorHandler } from "./middleware/errorHandler";
 import { initializeScheduler, stopScheduler } from "./services/scheduler";
 
-export function createApp(): express.Express {
+export interface AppDeps {
+  /**
+   * Webhook store + dispatcher. Optional so tests can inject an in-memory
+   * implementation. When omitted, production wiring (drizzle + fetch) is built
+   * lazily — importing this module never opens a DB connection by side effect.
+   */
+  webhooks?: AdminWebhookDeps;
+}
+
+function buildProductionWebhookDeps(): AdminWebhookDeps {
+  // Imported lazily so test/tooling imports don't require a live database.
+  const { getDb } = require("./db/client") as typeof import("./db/client");
+  const { DrizzleWebhookStore } =
+    require("./services/drizzleWebhookStore") as typeof import("./services/drizzleWebhookStore");
+  const { WebhookDispatcher } =
+    require("./services/webhookDispatcher") as typeof import("./services/webhookDispatcher");
+
+  const store = new DrizzleWebhookStore(getDb());
+  const dispatcher = new WebhookDispatcher({
+    store,
+    signingSecret: env.WEBHOOK_SIGNING_SECRET,
+  });
+  return { store, dispatcher };
+}
+
+export function createApp(deps: AppDeps = {}): express.Express {
   const app = express();
 
   app.use(helmet());
@@ -63,6 +87,9 @@ export function createApp(): express.Express {
   app.use("/api/markets", marketsRouter);
   app.use("/api/leaderboard", leaderboardRouter);
   app.use("/api/reconciliation", reconciliationRouter);
+
+  const webhooks = deps.webhooks ?? buildProductionWebhookDeps();
+  app.use("/api/admin/webhooks", createAdminWebhooksRouter(webhooks));
 
   app.use(errorHandler);
   return app;
