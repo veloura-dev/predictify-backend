@@ -1,14 +1,18 @@
 /**
  * requestContext.ts
  *
- * Provides an AsyncLocalStorage-based store that makes the current request ID
- * available anywhere in the call stack — including workers and background jobs —
- * without threading it through every function signature.
+ * Provides an AsyncLocalStorage-based store that makes per-request values
+ * available anywhere in the call stack — including workers and background
+ * jobs — without threading them through every function signature.
  *
- * Usage (Express middleware sets it, everything else reads it):
+ * Currently carried values:
+ *   - requestId   : sanitised X-Request-Id (set by pinoHttp + ALS middleware)
+ *   - fingerprint : stable SHA-256 request fingerprint (set by fingerprintMiddleware)
  *
- *   import { getRequestId } from "../lib/requestContext";
- *   logger.info({ reqId: getRequestId() }, "doing work");
+ * Usage:
+ *
+ *   import { getRequestId, getFingerprint } from "../lib/requestContext";
+ *   logger.info({ reqId: getRequestId(), fp: getFingerprint() }, "doing work");
  */
 
 import { AsyncLocalStorage } from "async_hooks";
@@ -17,6 +21,11 @@ import { AsyncLocalStorage } from "async_hooks";
 export interface RequestContext {
   /** Sanitised X-Request-Id for this request (max 64 chars). */
   requestId: string;
+  /**
+   * Stable SHA-256 fingerprint of the request structure.
+   * Populated after fingerprintMiddleware runs; undefined until then.
+   */
+  fingerprint?: string;
 }
 
 /**
@@ -31,4 +40,13 @@ export const requestContextStorage = new AsyncLocalStorage<RequestContext>();
  */
 export function getRequestId(): string | undefined {
   return requestContextStorage.getStore()?.requestId;
+}
+
+/**
+ * Returns the request fingerprint for the currently active async context,
+ * or `undefined` when called outside of a request or before the fingerprint
+ * middleware has run.
+ */
+export function getFingerprint(): string | undefined {
+  return requestContextStorage.getStore()?.fingerprint;
 }

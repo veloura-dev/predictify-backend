@@ -10,8 +10,9 @@ import { authRouter } from "./routes/auth";
 import { marketsRouter } from "./routes/markets";
 import { usersRouter } from "./routes/users";
 import { errorHandler } from "./middleware/errorHandler";
-import { connectWithRetry, closeDb } from "./db/client";
-import { stopScheduler } from "./services/scheduler";
+import { fingerprintMiddleware } from "./middleware/fingerprint";
+import { requestContextStorage } from "./lib/requestContext";
+import { REQUEST_ID_HEADER } from "./lib/http";
 
 const docsEnabled =
   env.NODE_ENV !== "production" || process.env.ENABLE_DOCS === "true";
@@ -19,23 +20,75 @@ const docsEnabled =
 export function createApp(): express.Express {
   const app = express();
 
-  // ── OpenAPI JSON spec (always available) ──────────────────────────────
-  app.get("/openapi.json", (_req, res) => {
-    res.json(getOpenApiSpec());
-  });
-
-  // ── Swagger UI (non-production or ENABLE_DOCS=true) ───────────────────
-  // Must be mounted BEFORE the global helmet() so /docs receives its own
-  // relaxed Content-Security-Policy. See docs/security.md.
-  if (docsEnabled) {
-    app.use("/docs", createDocsRouter());
-  }
-
-  // ── Global strict CSP ─────────────────────────────────────────────────
   app.use(helmet());
   app.use(express.json({ limit: "256kb" }));
-  app.use(pinoHttp({ logger }));
-  app.use(metricsMiddleware);
+
+  // ── pinoHttp ─────────────────────────────────────────────────────────────
+  //
+  // genReqId  - Honour an inbound X-Request-Id (sanitised); generate a UUID v4
+  //             when absent or when the inbound value is empty after sanitising.
+  //
+  // customProps - Lift req.id and the fingerprint to the top level of every log
+  //               line so they can be searched without drilling into nested objs.
+  app.use(
+    pinoHttp({
+      logger,
+      genReqId(req) {
+        const inbound = req.headers[REQUEST_ID_HEADER];
+        const raw = Array.isArray(inbound) ? inbound[0] : inbound;
+        return (raw && sanitizeRequestId(raw)) ?? uuidv4();
+      },
+      customProps(req, res) {
+        return {
+          reqId: req.id,
+          // fingerprint is set by fingerprintMiddleware which runs after this,
+          // so it will be present on the response-completion log line (pino-http
+          // reads customProps at log time, not at middleware registration time).
+          fingerprint: (res as express.Response).locals["fingerprint"],
+        };
+      },
+    }),
+  );
+
+  // ── AsyncLocalStorage + response-header middleware ────────────────────────
+  //
+  // Runs after pinoHttp so that req.id is already set.
+  //
+  // 1. Echoes the (possibly sanitised / generated) id back to the caller via
+  //    the X-Request-Id response header, making correlation trivial for clients.
+  //
+  // 2. Wraps the remaining middleware chain inside an AsyncLocalStorage context
+  //    so that any code further downstream — including async workers started
+  //    from a request handler — can call getRequestId() without needing the
+  //    id passed through every function argument.
+  app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const requestId = req.id as string;
+
+    // Echo back to client.
+    res.setHeader(REQUEST_ID_HEADER, requestId);
+
+    // Make available to all downstream code via AsyncLocalStorage.
+    // fingerprint is added to the store by fingerprintMiddleware below.
+    requestContextStorage.run({ requestId }, next);
+  });
+
+  // ── Fingerprint middleware ────────────────────────────────────────────────
+  //
+  // Runs inside the ALS context (getRequestId() is available) and after
+  // express.json() (req.body is parsed).  Sets res.locals.fingerprint and
+  // the X-Request-Fingerprint response header, then updates the ALS store.
+  app.use(fingerprintMiddleware);
+
+  // Propagate the computed fingerprint into the ALS store so that workers
+  // and background code spawned after this point can read it via
+  // getFingerprint() without needing it passed as a function argument.
+  app.use((_req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const store = requestContextStorage.getStore();
+    if (store) {
+      store.fingerprint = res.locals["fingerprint"] as string | undefined;
+    }
+    next();
+  });
 
   app.use("/health", healthRouter);
 
