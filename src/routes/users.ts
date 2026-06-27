@@ -27,30 +27,58 @@
 
 import { Router, Request, Response, NextFunction } from "express";
 import { z } from "zod";
-import { getUserProfile } from "../services/userService";
+import { getUserByAddress, getUserPredictions, getCurrentUserProfile } from "../services/userService";
+import { requireAuthForbidden } from "../middleware/requireAuth";
+import { AuthenticatedRequest } from "../middleware/auth";
 import { logger } from "../config/logger";
-import { getRequestId } from "../lib/requestContext";
 
 export const usersRouter = Router();
 
 // ── Validation ────────────────────────────────────────────────────────────
 
 /**
- * Minimal Stellar address validator.
+ * GET /api/users/me
+ * --------------------
+ * Returns the authenticated user's own profile (no path parameter).
  *
- * A Stellar public key (G-address) is a base-32 encoded 32-byte Ed25519
- * public key: always starts with "G", always exactly 56 characters long,
- * and uses the Stellar base-32 alphabet (A–Z, 2–7).
+ *   {
+ *     "data": {
+ *       "stellarAddress": "G…",
+ *       "createdAt":      "2024-…Z",
+ *       "totals": { "prediction_count": N, "claim_count": M }
+ *     }
+ *   }
  *
- * We perform this check at the boundary so the service layer never receives
- * a value that could cause unexpected query behaviour.
+ * Authentication is enforced by `requireAuthForbidden` — the issue spec
+ * (#132) requires **HTTP 403** for unauthenticated callers, which differs
+ * from the standard `requireAuth` (HTTP 401).  Path order matters: this
+ * route must be registered before `/:address/predictions` so Express does
+ * not capture "me" as an address parameter.
  */
-const stellarAddressSchema = z
-  .string()
-  .regex(
-    /^G[A-Z2-7]{55}$/,
-    "must be a valid Stellar public key (G… 56 chars, base-32)",
-  );
+usersRouter.get("/me", requireAuthForbidden, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    // requireAuthForbidden guarantees req.user is populated when next() is
+    // called.  Use the existing AuthenticatedRequest type so we don't need
+    // a global Request augmentation just for this one route.
+    const userId = req.user!.id;
+    const profile = await getCurrentUserProfile(userId);
+    logger.info(
+      { userId, stellarAddress: profile.stellarAddress, ...profile.totals },
+      "user_me_profile_loaded",
+    );
+    return res.json({ data: profile });
+  } catch (e) {
+    // The global errorHandler shapes AppError instances into the standard
+    // JSON envelope (e.g. AppError not_found → 404 not_found), so we simply
+    // propagate.  Anything else is a 500 internal_error there.
+    return next(e);
+  }
+});
+
+usersRouter.get("/:address/predictions", async (req, res, next) => {
+  try {
+    const { address } = req.params;
+    const { status, cursor, limit = "20" } = req.query;
 
 // ── Route ─────────────────────────────────────────────────────────────────
 

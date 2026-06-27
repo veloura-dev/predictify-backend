@@ -180,6 +180,42 @@ export const requireAuth: RequestHandler = async (
 };
 
 /**
+ * `requireAuthForbidden` — same as `requireAuth` but replies with **HTTP 403**
+ * for any authentication failure (missing/expired/forged token, unknown user)
+ * and uses the error code `"forbidden"` instead of `"unauthenticated"`.
+ *
+ * Use this on routes whose issue spec / acceptance criteria requires 403 for
+ * anonymous callers (for example `GET /api/users/me`).  Strictly preserving
+ * 401 for those routes would deviate from the documented contract, even
+ * though RFC 7231 puts "401 unauthenticated" and "403 forbidden" on a
+ * continuum that real-world services routinely blur.
+ *
+ * Flow mirrors `requireAuth` 1:1 so the only observable difference is the
+ * status line and error code.  All non-auth errors still bubble up to the
+ * global error handler unchanged.
+ */
+export const requireAuthForbidden: RequestHandler = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    req.user = await authenticate(req);
+    next();
+  } catch (err) {
+    if (err instanceof AuthError) {
+      logger.warn(
+        { path: req.path, method: req.method, reason: err.message },
+        "auth_rejected_forbidden",
+      );
+      res.status(403).json({ error: { code: "forbidden" } });
+      return;
+    }
+    next(err);
+  }
+};
+
+/**
  * `optionalAuth` — personalises a route without requiring authentication.
  *
  * On valid token   → `req.user` is populated, `next()` is called.

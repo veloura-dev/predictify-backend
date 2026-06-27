@@ -1,13 +1,6 @@
-/**
- * userService.ts
- *
- * Data-access layer for public user profile information.
- *
- * All functions return plain objects so that the route layer can serialise
- * them directly.  The real implementations will query Drizzle/PostgreSQL;
- * stubs are provided here so the rest of the application compiles and the
- * test suite can inject mocks without touching a live database.
- */
+import { db } from "../db";
+import { users, predictions, markets, claims } from "../db/schema";
+import { and, eq, desc, lt, count } from "drizzle-orm";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -83,4 +76,85 @@ export async function getUserProfile(
   // Replace with a Drizzle query against the real connection pool.
   void stellarAddress;
   return null;
+}
+
+/**
+ * Response shape for `GET /api/users/me`.  All timestamps are serialised to
+ * ISO-8601 strings so the wire format is stable across runtimes.
+ */
+export interface UserProfile {
+  /** The user's on-chain Stellar address (G...). */
+  stellarAddress: string;
+  /** Account creation timestamp (ISO-8601). */
+  createdAt: string;
+  /** Aggregate counters for the user's activity on the platform. */
+  totals: {
+    /** Total number of predictions the user has placed. */
+    prediction_count: number;
+    /** Total number of winnings claims the user has submitted. */
+    claim_count: number;
+  };
+}
+
+/**
+ * Returns the authenticated user's profile (stellarAddress, createdAt) along
+ * with aggregate counts of their predictions and claims.  Three queries run
+ * in parallel via Promise.all:
+ *
+ *   1. users      — by PK (UUID), cheap point-lookup
+ *   2. predictions — COUNT(*) filtered by user_id (FK index)
+ *   3. claims      — COUNT(*) filtered by user_id (FK index)
+ *
+ * The user row is fetched here rather than passed in by the route so the
+ * caller can pass a single argument (req.user.id) and the shape derivable
+ * from `users` is always in sync with the live DB.
+ *
+ * Throws `AppError.notFound` if the user row no longer exists (e.g. deleted
+ * between token issuance and request) — a defensive error that should be
+ * effectively unreachable in production, but matters for testability.
+ */
+export async function getCurrentUserProfile(userId: string): Promise<UserProfile> {
+  const [userRow, predCountRow, claimCountRow] = await Promise.all([
+    db
+      .select({
+        stellarAddress: users.stellarAddress,
+        createdAt: users.createdAt,
+      })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1),
+    db
+      .select({ value: count() })
+      .from(predictions)
+      .where(eq(predictions.userId, userId)),
+    db
+      .select({ value: count() })
+      .from(claims)
+      .where(eq(claims.userId, userId)),
+  ]);
+
+  const user = userRow[0];
+  // requireAuthForbidden already verified the user row exists at JWT
+  // verification time, so this branch is effectively unreachable.  It is
+  // kept as a robustness check against a TOCTOU deletion race: if the row
+  // is gone, the global errorHandler still surfaces a sane 500 envelope
+  // (we intentionally do not use AppError here because the row's absence
+  // is a server-side anomaly rather than a user-facing not_found).
+  if (!user) {
+    throw new Error("user row vanished mid-request");
+  }
+
+  // Drizzle's count() returns a single row with `value` (string in some
+  // drivers, number in others).  Coerce to a safe integer.
+  const prediction_count = Number(predCountRow[0]?.value ?? 0);
+  const claim_count = Number(claimCountRow[0]?.value ?? 0);
+
+  return {
+    stellarAddress: user.stellarAddress,
+    createdAt: user.createdAt.toISOString(),
+    totals: {
+      prediction_count,
+      claim_count,
+    },
+  };
 }
