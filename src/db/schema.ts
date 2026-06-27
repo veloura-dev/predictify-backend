@@ -159,51 +159,35 @@ export const idempotencyRecords = pgTable(
   (t) => ({ idempotencyExpiresIdx: index("idempotency_expires_idx").on(t.expiresAt) }),
 );
 
-// ---------------------------------------------------------------------------
-// Claims, disputes and admin audit log
-//
-// These tables were added in drizzle/0001_add_admin_tables.sql.  They live
-// here so any service (admin or end-user facing) can materialise queries
-// against them without resorting to raw SQL.  The definitions mirror the
-// migration columns exactly so the drizzle type-checks match the live DB.
-// ---------------------------------------------------------------------------
+
 
 /**
- * `claims` — winnings claims submitted after a market resolves.
- * Status lifecycle: "pending" → ("paid" | "rejected").
+ * Stores audit log entries for all significant backend actions.
+ * Includes optional rate-limit context when the entry was triggered
+ * by or during a rate-limited request.
  */
-export const claims = pgTable("claims", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull().references(() => users.id),
-  marketId: text("market_id").notNull().references(() => markets.id),
-  amount: text("amount").notNull(),
-  /** pending | paid | rejected */
-  status: text("status").notNull().default("pending"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const auditLogs = pgTable(
+  "audit_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** The action that was performed e.g. "auth.login", "market.create" */
+    action: text("action").notNull(),
+    /** Stellar wallet address of the actor, if authenticated */
+    walletAddress: text("wallet_address"),
+    /** IP address of the request origin */
+    ip: text("ip").notNull(),
+    /** Correlation ID for tracing across logs */
+    correlationId: text("correlation_id").notNull(),
+    /**
+     * Rate-limit context captured at request time.
+     * Shape: { limit: number, remaining: number, resetAt: string, blocked: boolean }
+     */
+    rateLimitContext: jsonb("rate_limit_context"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    auditLogsCorrelationIdx: index("audit_logs_correlation_idx").on(t.correlationId),
+    auditLogsCreatedAtIdx: index("audit_logs_created_at_idx").on(t.createdAt),
+  }),
+);
 
-/**
- * `disputes` — resolution disputes raised by users against a market outcome.
- * Status lifecycle: "open" → ("resolved" | "rejected").
- */
-export const disputes = pgTable("disputes", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull().references(() => users.id),
-  marketId: text("market_id").notNull().references(() => markets.id),
-  reason: text("reason").notNull(),
-  /** open | resolved | rejected */
-  status: text("status").notNull().default("open"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
-
-/**
- * `admin_audit_log` — immutable trail of admin reads/writes on user data.
- * Only INSERTs are expected; never UPDATE or DELETE.
- */
-export const adminAuditLog = pgTable("admin_audit_log", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  adminAddress: text("admin_address").notNull(),
-  action: text("action").notNull(),
-  targetAddress: text("target_address").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});

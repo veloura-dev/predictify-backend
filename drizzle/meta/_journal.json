@@ -8,6 +8,13 @@
       "when": 1782556191646,
       "tag": "0000_easy_black_bird",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1782594683208,
+      "tag": "0001_chubby_dexter_bennett",
+      "breakpoints": true
     }
   ]
 }

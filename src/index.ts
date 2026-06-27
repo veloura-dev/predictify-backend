@@ -10,12 +10,8 @@ import { authRouter } from "./routes/auth";
 import { marketsRouter } from "./routes/markets";
 import { usersRouter } from "./routes/users";
 import { errorHandler } from "./middleware/errorHandler";
-import { fingerprintMiddleware } from "./middleware/fingerprint";
-import { requestContextStorage } from "./lib/requestContext";
-import { REQUEST_ID_HEADER } from "./lib/http";
-
-const docsEnabled =
-  env.NODE_ENV !== "production" || process.env.ENABLE_DOCS === "true";
+import { connectWithRetry, closeDb } from "./db/client";
+import { defaultRateLimiter } from "./middleware/rateLimit";
 
 export function createApp(): express.Express {
   const app = express();
@@ -93,12 +89,16 @@ export function createApp(): express.Express {
   app.use("/health", healthRouter);
 
   // Idempotency guard for all state-mutating routes under /api.
+  // Must be mounted before the routers it protects.
+
+  app.use("/api", defaultRateLimiter);
   const mutationMethods = ["POST", "PATCH"] as const;
   app.use("/api", (req, res, next) =>
     mutationMethods.includes(req.method as (typeof mutationMethods)[number])
       ? idempotency(req, res, next)
       : next(),
   );
+
 
   app.use("/api/auth", authRouter);
   app.use("/api/markets", marketsRouter);
