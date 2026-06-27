@@ -1,7 +1,7 @@
 import request from "supertest";
 import jwt from "jsonwebtoken";
 import { createApp } from "../src/index";
-import { hashToken } from "../src/services/refreshTokenService";
+import { hashToken, issueRefreshToken } from "../src/services/refreshTokenService";
 import { db } from "../src/db/index";
 
 // Mock Drizzle db instance
@@ -58,6 +58,12 @@ describe("Refresh Token Rotation and Lifecycle", () => {
   describe("POST /api/auth/refresh", () => {
     it("returns 400 if refreshToken is not provided or invalid", async () => {
       const res = await request(app).post("/api/auth/refresh").send({});
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe("invalid_request");
+    });
+
+    it("returns 400 if refreshToken is an empty string", async () => {
+      const res = await request(app).post("/api/auth/refresh").send({ refreshToken: "" });
       expect(res.status).toBe(400);
       expect(res.body.error.code).toBe("invalid_request");
     });
@@ -191,7 +197,7 @@ describe("Refresh Token Rotation and Lifecycle", () => {
   });
 
   describe("POST /api/auth/logout", () => {
-    it("revokes family and returns 200 OK", async () => {
+    it("revokes the active family even when the presented token was already rotated", async () => {
       const familyId = "family-uuid-999";
 
       mockLimit.mockResolvedValueOnce([
@@ -202,7 +208,7 @@ describe("Refresh Token Rotation and Lifecycle", () => {
           familyId,
           parentId: null,
           expiresAt: new Date(Date.now() + 1000000),
-          revokedAt: null,
+          revokedAt: new Date(Date.now() - 5000),
         },
       ]);
 
@@ -218,6 +224,19 @@ describe("Refresh Token Rotation and Lifecycle", () => {
       expect(mockSet).toHaveBeenCalledWith(
         expect.objectContaining({ revokedAt: expect.any(Date) })
       );
+    });
+  });
+
+  describe("issueRefreshToken", () => {
+    it("stores only the sha256 hash of the raw refresh token", async () => {
+      const { token } = await issueRefreshToken("user-uuid-123");
+
+      expect(db.insert).toHaveBeenCalled();
+
+      const insertedValues = mockValues.mock.calls[0][0];
+      expect(insertedValues.tokenHash).toBe(hashToken(token));
+      expect(insertedValues.tokenHash).not.toBe(token);
+      expect(insertedValues.tokenHash).toMatch(/^[a-f0-9]{64}$/);
     });
   });
 });

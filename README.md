@@ -72,6 +72,21 @@ This starter is intentionally minimal. The full backlog is tracked in GitHub Iss
 - Observability (metrics, tracing, /readyz with deep checks)
 - OpenAPI spec + contract tests
 
+## Auth Refresh Flow
+
+- `POST /api/auth/refresh` accepts `{ "refreshToken": "<opaque token>" }`, revokes the presented refresh token, and returns a fresh `accessToken` plus a rotated `refreshToken`.
+- Refresh tokens are stored only as SHA-256 hashes in the `refresh_tokens` table. The raw bearer token is generated once and is never persisted.
+- If a revoked refresh token is presented again, the service treats it as suspected theft and revokes every still-active token in the same `familyId`.
+- `POST /api/auth/logout` accepts the same body and revokes the remaining active tokens in that refresh-token family.
+
+## Refresh Token Tests
+
+```bash
+npm test -- tests/refreshToken.test.ts
+```
+
+The refresh-token test suite covers rotation, expiry handling, reuse detection, logout family revocation, and hash-only storage.
+
 ## License
 
 MIT

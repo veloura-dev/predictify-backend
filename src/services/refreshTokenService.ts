@@ -7,6 +7,23 @@ import { env } from "../config/env";
 import { logger } from "../config/logger";
 
 const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+const REFRESH_TOKEN_ERROR_MESSAGES = {
+  invalid: "Invalid refresh token",
+  expired: "Refresh token expired",
+  reuseDetected: "Refresh token reuse detected",
+} as const;
+
+export type RefreshTokenErrorCode = keyof typeof REFRESH_TOKEN_ERROR_MESSAGES;
+
+export class RefreshTokenError extends Error {
+  constructor(public readonly code: RefreshTokenErrorCode) {
+    super(REFRESH_TOKEN_ERROR_MESSAGES[code]);
+    this.name = "RefreshTokenError";
+  }
+}
+
+type RefreshTokenRecord = typeof refreshTokens.$inferSelect;
+type UserRecord = typeof users.$inferSelect;
 
 export function hashToken(token: string): string {
   return crypto.createHash("sha256").update(token).digest("hex");
@@ -22,6 +39,38 @@ export function generateAccessToken(userId: string, stellarAddress: string): str
       audience: env.JWT_AUDIENCE,
     }
   );
+}
+
+async function findRefreshTokenByRawToken(rawToken: string): Promise<RefreshTokenRecord | null> {
+  const [tokenRecord] = await db
+    .select()
+    .from(refreshTokens)
+    .where(eq(refreshTokens.tokenHash, hashToken(rawToken)))
+    .limit(1);
+
+  return tokenRecord ?? null;
+}
+
+async function findUserById(userId: string): Promise<UserRecord | null> {
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  return user ?? null;
+}
+
+async function revokeTokenFamilyById(familyId: string): Promise<void> {
+  await db
+    .update(refreshTokens)
+    .set({ revokedAt: new Date() })
+    .where(
+      and(
+        eq(refreshTokens.familyId, familyId),
+        isNull(refreshTokens.revokedAt)
+      )
+    );
 }
 
 export async function issueRefreshToken(
@@ -53,68 +102,45 @@ export async function issueRefreshToken(
 export async function rotateRefreshToken(
   rawToken: string
 ): Promise<{ accessToken: string; refreshToken: string }> {
-  const hash = hashToken(rawToken);
-
-  const [tokenRecord] = await db
-    .select()
-    .from(refreshTokens)
-    .where(eq(refreshTokens.tokenHash, hash))
-    .limit(1);
+  const tokenRecord = await findRefreshTokenByRawToken(rawToken);
 
   if (!tokenRecord) {
-    throw new Error("Invalid refresh token");
+    throw new RefreshTokenError("invalid");
   }
 
-  // Reuse detection: check if already revoked
   if (tokenRecord.revokedAt !== null) {
     logger.warn(
       { familyId: tokenRecord.familyId },
       "Refresh token reuse detected. Revoking entire token family."
     );
 
-    // Revoke all tokens sharing the same familyId
-    await db
-      .update(refreshTokens)
-      .set({ revokedAt: new Date() })
-      .where(
-        and(
-          eq(refreshTokens.familyId, tokenRecord.familyId),
-          isNull(refreshTokens.revokedAt)
-        )
-      );
+    // A rotated token being presented again suggests theft, so the active branch is invalidated.
+    await revokeTokenFamilyById(tokenRecord.familyId);
 
-    throw new Error("Refresh token reuse detected");
+    throw new RefreshTokenError("reuseDetected");
   }
 
-  // Expiry check
   if (tokenRecord.expiresAt < new Date()) {
-    throw new Error("Refresh token expired");
+    throw new RefreshTokenError("expired");
   }
 
-  // Revoke the old token
+  const user = await findUserById(tokenRecord.userId);
+
+  if (!user) {
+    throw new RefreshTokenError("invalid");
+  }
+
   const now = new Date();
   await db
     .update(refreshTokens)
     .set({ revokedAt: now })
     .where(eq(refreshTokens.id, tokenRecord.id));
 
-  // Issue new refresh token within the same family
   const { token: newRawRefreshToken } = await issueRefreshToken(
     tokenRecord.userId,
     tokenRecord.familyId,
     tokenRecord.id
   );
-
-  // Retrieve user to generate a new access token
-  const [user] = await db
-    .select()
-    .from(users)
-    .where(eq(users.id, tokenRecord.userId))
-    .limit(1);
-
-  if (!user) {
-    throw new Error("User not found");
-  }
 
   const accessToken = generateAccessToken(user.id, user.stellarAddress);
 
@@ -125,23 +151,9 @@ export async function rotateRefreshToken(
 }
 
 export async function revokeFamily(rawToken: string): Promise<void> {
-  const hash = hashToken(rawToken);
-
-  const [tokenRecord] = await db
-    .select()
-    .from(refreshTokens)
-    .where(eq(refreshTokens.tokenHash, hash))
-    .limit(1);
+  const tokenRecord = await findRefreshTokenByRawToken(rawToken);
 
   if (tokenRecord) {
-    await db
-      .update(refreshTokens)
-      .set({ revokedAt: new Date() })
-      .where(
-        and(
-          eq(refreshTokens.familyId, tokenRecord.familyId),
-          isNull(refreshTokens.revokedAt)
-        )
-      );
+    await revokeTokenFamilyById(tokenRecord.familyId);
   }
 }
