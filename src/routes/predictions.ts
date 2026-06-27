@@ -21,5 +21,6 @@ predictionsRouter.use(requireAuth);
 predictionsRouter.get("/", (req, res) => {
   // req.user is guaranteed to be defined here because requireAuth
   // would have returned 401 before reaching this handler.
-  res.json({ data: [], user: req.user });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  res.json({ data: [], user: (req as any).user });
 });

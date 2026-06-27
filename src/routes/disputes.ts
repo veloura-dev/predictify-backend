@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { requireAuth } from "../middleware/auth";
+import { requireAuth } from "../middleware/requireAuth";
 import { openDispute, DisputeError } from "../services/disputeService";
 import { validateHttpsUrl, validateSsrf } from "../utils/url";
 import { logger } from "../config/logger";
@@ -14,20 +14,23 @@ const openDisputeSchema = z.object({
 
 disputesRouter.post("/", requireAuth, async (req, res, next) => {
   try {
-    const marketId = req.params.id as string;
+    // mergeParams: true means :id from the parent router is available here
+    const marketId = (req.params as Record<string, string>).id;
     if (!marketId) {
-      return res.status(400).json({ error: { code: "bad_request", message: "Market ID is required" } });
+      res.status(400).json({ error: { code: "bad_request", message: "Market ID is required" } });
+      return;
     }
 
     const parsed = openDisputeSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({
+      res.status(400).json({
         error: {
           code: "validation_error",
           message: "Invalid request body",
           details: parsed.error.flatten().fieldErrors,
         },
       });
+      return;
     }
 
     const { reason, evidenceUri } = parsed.data;
@@ -35,23 +38,24 @@ disputesRouter.post("/", requireAuth, async (req, res, next) => {
     if (evidenceUri) {
       const urlResult = validateHttpsUrl(evidenceUri);
       if (!urlResult.valid) {
-        return res.status(400).json({
-          error: { code: "invalid_evidence_uri", message: urlResult.error },
-        });
+        res.status(400).json({ error: { code: "invalid_evidence_uri", message: urlResult.error } });
+        return;
       }
 
       const ssrfResult = await validateSsrf(evidenceUri);
       if (!ssrfResult.valid) {
         logger.warn({ evidenceUri, error: ssrfResult.error }, "SSRF check failed for evidenceUri");
-        return res.status(400).json({
-          error: { code: "ssrf_check_failed", message: ssrfResult.error },
-        });
+        res.status(400).json({ error: { code: "ssrf_check_failed", message: ssrfResult.error } });
+        return;
       }
     }
 
+    // req.user is guaranteed by requireAuth middleware
+    const userId = (req as unknown as { user: { id: string } }).user.id;
+
     const dispute = await openDispute({
       marketId,
-      userId: req.user!.sub,
+      userId,
       reason,
       evidenceUri: evidenceUri ?? null,
     });
@@ -59,8 +63,9 @@ disputesRouter.post("/", requireAuth, async (req, res, next) => {
     res.status(201).json({ data: dispute });
   } catch (e) {
     if (e instanceof DisputeError) {
-      return res.status(e.status).json({ error: { code: e.code, message: e.message } });
+      res.status(e.status).json({ error: { code: e.code, message: e.message } });
+      return;
     }
-    return next(e);
+    next(e);
   }
 });

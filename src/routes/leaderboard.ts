@@ -38,7 +38,8 @@ leaderboardRouter.get("/user/:stellarAddress", async (req, res, next) => {
   try {
     const entry = await getUserLeaderboardEntry(req.params.stellarAddress);
     if (!entry) {
-      return res.status(404).json({ error: { code: "not_found" } });
+      res.status(404).json({ error: { code: "not_found" } });
+      return;
     }
     res.json({ data: entry });
   } catch (e) {

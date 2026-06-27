@@ -1,7 +1,7 @@
 import { db } from "../db";
 import { sql } from "drizzle-orm";
 
-export interface LeaderboardEntry {
+export interface LeaderboardEntry extends Record<string, unknown> {
   user_id: string;
   stellar_address: string;
   total_predictions: number;

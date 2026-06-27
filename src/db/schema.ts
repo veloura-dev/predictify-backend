@@ -15,6 +15,21 @@ export const authChallenges = pgTable("auth_challenges", {
 });
 
 // ---------------------------------------------------------------------------
+// Refresh token table
+// ---------------------------------------------------------------------------
+
+export const refreshTokens = pgTable("refresh_tokens", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  tokenHash: text("token_hash").notNull().unique(),
+  familyId: uuid("family_id").notNull(),
+  parentId: uuid("parent_id"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ---------------------------------------------------------------------------
 // Webhook tables
 // ---------------------------------------------------------------------------
 

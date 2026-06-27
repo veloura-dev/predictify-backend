@@ -23,6 +23,7 @@
     "db:check-drift": "ts-node scripts/check-drizzle-drift.ts"
   },
   "dependencies": {
+    "@asteasolutions/zod-to-openapi": "7.3.4",
     "@stellar/stellar-sdk": "^12.0.0",
     "drizzle-orm": "^0.45.2",
     "express": "^4.21.0",
