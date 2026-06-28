@@ -80,15 +80,21 @@ usersRouter.get("/me", requireAuthForbidden, async (req: AuthenticatedRequest, r
     // called.  Use the existing AuthenticatedRequest type so we don't need
     // a global Request augmentation just for this one route.
     const userId = req.user!.id;
-    const profile = await getCurrentUserProfile(userId);
+    const result = await getCurrentUserProfile(userId);
+
+    if (!result.ok) {
+      throw result.error;
+    }
+
+    const profile = result.value;
     logger.info(
       { userId, stellarAddress: profile.stellarAddress, ...profile.totals },
       "user_me_profile_loaded",
     );
     return res.json({ data: profile });
   } catch (e) {
-    // The global errorHandler shapes AppError instances into the standard
-    // JSON envelope (e.g. AppError not_found → 404 not_found), so we simply
+    // The global errorHandler shapes RouteError instances into the standard
+    // JSON envelope (e.g. RouteError NotFound → 404), so we simply
     // propagate.  Anything else is a 500 internal_error there.
     return next(e);
   }

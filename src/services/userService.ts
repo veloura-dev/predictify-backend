@@ -1,6 +1,7 @@
 import { db } from "../db";
 import { users, predictions, markets, claims } from "../db/schema";
 import { and, eq, desc, lt, count } from "drizzle-orm";
+import { Result, ok, err } from "../errors/RouteError";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -82,7 +83,7 @@ export async function getUserProfile(
  * Response shape for `GET /api/users/me`.  All timestamps are serialised to
  * ISO-8601 strings so the wire format is stable across runtimes.
  */
-export interface UserProfile {
+export interface CurrentUserProfile {
   /** The user's on-chain Stellar address (G...). */
   stellarAddress: string;
   /** Account creation timestamp (ISO-8601). */
@@ -109,11 +110,11 @@ export interface UserProfile {
  * caller can pass a single argument (req.user.id) and the shape derivable
  * from `users` is always in sync with the live DB.
  *
- * Throws `AppError.notFound` if the user row no longer exists (e.g. deleted
+ * Returns Unauthorized if the user row no longer exists (e.g. deleted
  * between token issuance and request) — a defensive error that should be
  * effectively unreachable in production, but matters for testability.
  */
-export async function getCurrentUserProfile(userId: string): Promise<UserProfile> {
+export async function getCurrentUserProfile(userId: string): Promise<Result<CurrentUserProfile>> {
   const [userRow, predCountRow, claimCountRow] = await Promise.all([
     db
       .select({
@@ -137,11 +138,13 @@ export async function getCurrentUserProfile(userId: string): Promise<UserProfile
   // requireAuthForbidden already verified the user row exists at JWT
   // verification time, so this branch is effectively unreachable.  It is
   // kept as a robustness check against a TOCTOU deletion race: if the row
-  // is gone, the global errorHandler still surfaces a sane 500 envelope
-  // (we intentionally do not use AppError here because the row's absence
-  // is a server-side anomaly rather than a user-facing not_found).
+  // is gone, return NotFound instead of throwing.
   if (!user) {
-    throw new Error("user row vanished mid-request");
+    return err({
+      kind: "NotFound",
+      message: "User not found",
+      resource: "User",
+    });
   }
 
   // Drizzle's count() returns a single row with `value` (string in some
@@ -149,12 +152,12 @@ export async function getCurrentUserProfile(userId: string): Promise<UserProfile
   const prediction_count = Number(predCountRow[0]?.value ?? 0);
   const claim_count = Number(claimCountRow[0]?.value ?? 0);
 
-  return {
+  return ok({
     stellarAddress: user.stellarAddress,
     createdAt: user.createdAt.toISOString(),
     totals: {
       prediction_count,
       claim_count,
     },
-  };
+  });
 }
