@@ -1,4 +1,23 @@
-/**
+// Add these imports at the top if missing
+import crypto from 'crypto';
+
+// Update your profile handler
+export const getProfile = async (req: Request, res: Response) => {
+  const profile = await userService.getProfile(req.params.addr); // Adjust based on your actual service call
+  
+  if (!profile) return res.status(404).send('Not Found');
+
+  const etag = crypto.createHash('md5').update(JSON.stringify(profile)).digest('hex');
+  
+  res.set('ETag', etag);
+  res.set('Cache-Control', 'public, max-age=0, must-revalidate');
+
+  if (req.header('If-None-Match') === etag) {
+    return res.status(304).end();
+  }
+
+  res.json(profile);
+};/**
  * users.ts
  *
  * Public user-profile routes.
