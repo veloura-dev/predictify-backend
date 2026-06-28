@@ -10,6 +10,7 @@ import { healthRouter } from "./routes/health";
 import { authRouter } from "./routes/auth";
 import { marketsRouter } from "./routes/markets";
 import { usersRouter } from "./routes/users";
+import { socialRouter } from "./routes/social";
 import { authRouter } from "./routes/auth";
 import { leaderboardRouter } from "./routes/leaderboard";
 import { createDocsRouter } from "./routes/docs";
@@ -61,11 +62,17 @@ export function createApp(): express.Express {
     }),
   );
 
-  app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
-    const requestId = req.id as string;
-    res.setHeader(REQUEST_ID_HEADER, requestId);
-    requestContextStorage.run({ requestId }, next);
-  });
+  app.use(
+    (
+      req: express.Request,
+      res: express.Response,
+      next: express.NextFunction,
+    ) => {
+      const requestId = req.id as string;
+      res.setHeader(REQUEST_ID_HEADER, requestId);
+      requestContextStorage.run({ requestId }, next);
+    },
+  );
 
   app.use(metricsMiddleware);
 
@@ -78,15 +85,18 @@ export function createApp(): express.Express {
       : next(),
   );
 
-
   app.use("/api/auth", authRouter);
   app.use("/api/markets", marketsRouter);
   app.use("/api/leaderboard", leaderboardRouter);
+  app.use("/api/users", socialRouter);
   app.use("/api/users", usersRouter);
 
   app.get("/metrics", async (req, res) => {
     const metricsAuthToken = process.env.METRICS_AUTH_TOKEN;
-    if (metricsAuthToken && req.headers.authorization !== `Bearer ${metricsAuthToken}`) {
+    if (
+      metricsAuthToken &&
+      req.headers.authorization !== `Bearer ${metricsAuthToken}`
+    ) {
       res.status(401).send("Unauthorized");
       return;
     }
@@ -104,9 +114,14 @@ if (require.main === module) {
   connectWithRetry()
     .then(() => {
       app.listen(env.PORT, () => {
-        logger.info({ port: env.PORT, env: env.NODE_ENV }, "predictify-backend listening");
+        logger.info(
+          { port: env.PORT, env: env.NODE_ENV },
+          "predictify-backend listening",
+        );
         if (docsEnabled) {
-          logger.info(`Swagger UI available at http://localhost:${env.PORT}/docs`);
+          logger.info(
+            `Swagger UI available at http://localhost:${env.PORT}/docs`,
+          );
         }
       });
     })
