@@ -10,6 +10,8 @@ import { healthRouter } from "./routes/health";
 import { authRouter } from "./routes/auth";
 import { marketsRouter } from "./routes/markets";
 import { usersRouter } from "./routes/users";
+import { socialRouter } from "./routes/social";
+import { authRouter } from "./routes/auth";
 import { leaderboardRouter } from "./routes/leaderboard";
 import { createDocsRouter } from "./routes/docs";
 import { errorHandler } from "./middleware/errorHandler";
@@ -63,7 +65,7 @@ export function createApp(): express.Express {
       res: express.Response,
       next: express.NextFunction,
     ) => {
-      const requestId = String((req as { id?: string }).id ?? uuidv4());
+      const requestId = req.id as string;
       res.setHeader(REQUEST_ID_HEADER, requestId);
       requestContextStorage.run({ requestId }, next);
     },
@@ -80,8 +82,9 @@ export function createApp(): express.Express {
   );
 
   app.use("/api/auth", authRouter);
-  app.use("/api/markets", captchaGate, marketsRouter);
-  app.use("/api/leaderboard", captchaGate, leaderboardRouter);
+  app.use("/api/markets", marketsRouter);
+  app.use("/api/leaderboard", leaderboardRouter);
+  app.use("/api/users", socialRouter);
   app.use("/api/users", usersRouter);
   app.use("/api/admin/audit", adminAuditRouter);
 
@@ -109,9 +112,14 @@ if (require.main === module) {
   connectWithRetry()
     .then(() => {
       app.listen(env.PORT, () => {
-        logger.info({ port: env.PORT, env: env.NODE_ENV }, "predictify-backend listening");
-        if (env.NODE_ENV !== "production") {
-          logger.info(`Swagger UI available at http://localhost:${env.PORT}/docs`);
+        logger.info(
+          { port: env.PORT, env: env.NODE_ENV },
+          "predictify-backend listening",
+        );
+        if (docsEnabled) {
+          logger.info(
+            `Swagger UI available at http://localhost:${env.PORT}/docs`,
+          );
         }
       });
     })

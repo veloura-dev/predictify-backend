@@ -92,6 +92,17 @@ npm test -- tests/refreshToken.test.ts
 
 The refresh-token test suite covers rotation, expiry handling, reuse detection, logout family revocation, and hash-only storage.
 
+## Social graph
+
+Follow graph mutations are exposed at:
+
+- `POST /api/users/:addr/follow`
+- `DELETE /api/users/:addr/follow`
+
+These endpoints require authentication, enforce `users.is_private`, update
+cached `followers_count` and `following_count` values transactionally, and
+write structured audit entries with the request correlation ID.
+
 ## License
 
 MIT
