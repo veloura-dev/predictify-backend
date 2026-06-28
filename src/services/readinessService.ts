@@ -1,6 +1,6 @@
-import { env } from "./config/env";
+import { env } from "../config/env";
 import { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { logger } from "./config/logger";
+import { logger } from "../config/logger";
 import * as sdk from "@stellar/stellar-sdk";
 import { sql } from "drizzle-orm";
 

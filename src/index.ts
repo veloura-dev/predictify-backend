@@ -1,5 +1,5 @@
 import express from "express";
-
+import helmet from "helmet";
 import pinoHttp from "pino-http";
 import { v4 as uuidv4 } from "uuid";
 import { env } from "./config/env";
@@ -13,33 +13,19 @@ import { marketsRouter } from "./routes/markets";
 import { usersRouter } from "./routes/users";
 import { leaderboardRouter } from "./routes/leaderboard";
 import { createDocsRouter } from "./routes/docs";
+import { notificationsRouter } from "./routes/notifications";
+import { socialRouter } from "./routes/social";
+import { adminAuditRouter } from "./routes/admin/audit";
 import { errorHandler } from "./middleware/errorHandler";
 import { requestContextStorage } from "./lib/requestContext";
 import { REQUEST_ID_HEADER } from "./lib/http";
 import { register } from "./metrics/registry";
 import { connectWithRetry, closeDb } from "./db/client";
-import { REQUEST_ID_HEADER } from "./lib/http";
-import { requestContextStorage } from "./lib/requestContext";
-import { errorHandler } from "./middleware/errorHandler";
-import { idempotency } from "./middleware/idempotency";
-import { metricsMiddleware } from "./metrics/httpMetrics";
-import { register } from "./metrics/registry";
-import { authRouter } from "./routes/auth";
-import { createDocsRouter } from "./routes/docs";
-import { healthRouter } from "./routes/health";
-import { leaderboardRouter } from "./routes/leaderboard";
-import { marketsRouter } from "./routes/markets";
-import { notificationsRouter } from "./routes/notifications";
-import { socialRouter } from "./routes/social";
-import { usersRouter } from "./routes/users";
 import { stopScheduler } from "./services/scheduler";
-import { adminAuditRouter } from "./routes/admin/audit";
 
 const docsEnabled = env.NODE_ENV !== "production" || process.env.ENABLE_DOCS === "true";
 
 const REQUEST_ID_MAX_LENGTH = 64;
-const docsEnabled =
-  env.NODE_ENV !== "production" || process.env.ENABLE_DOCS === "true";
 
 function sanitizeRequestId(raw: string): string | undefined {
   const sanitized = raw
@@ -82,7 +68,7 @@ export function createApp(): express.Express {
       res: express.Response,
       next: express.NextFunction,
     ) => {
-      const requestId = String(req.id);
+      const requestId = String((req as { id?: unknown }).id);
       res.setHeader(REQUEST_ID_HEADER, requestId);
       requestContextStorage.run({ requestId }, next);
     },

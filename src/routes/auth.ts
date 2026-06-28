@@ -2,13 +2,11 @@ import { Router } from "express";
 import { z } from "zod";
 import { StrKey } from "@stellar/stellar-sdk";
 import {
-  RefreshTokenError,
   rotateRefreshToken,
   revokeFamily,
 } from "../services/refreshTokenService";
 import { createChallenge } from "../services/authChallengeService";
-import { verifyChallengeAndIssueJwt, AuthVerifyError } from "../services/authVerifyService";
-import { logger } from "../config/logger";
+import { verifyChallengeAndIssueJwt } from "../services/authVerifyService";
 
 export const authRouter = Router();
 
