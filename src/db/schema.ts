@@ -1,9 +1,21 @@
-import { pgTable, uuid, text, timestamp, integer, boolean, jsonb, index } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  uuid,
+  text,
+  timestamp,
+  integer,
+  boolean,
+  jsonb,
+  index,
+  primaryKey,
+} from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   stellarAddress: text("stellar_address").notNull().unique(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
 export const authChallenges = pgTable("auth_challenges", {
@@ -11,7 +23,9 @@ export const authChallenges = pgTable("auth_challenges", {
   stellarAddress: text("stellar_address").notNull(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   used: boolean("used").notNull().default(false),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
 // ---------------------------------------------------------------------------
@@ -20,13 +34,17 @@ export const authChallenges = pgTable("auth_challenges", {
 
 export const refreshTokens = pgTable("refresh_tokens", {
   id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull().references(() => users.id),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id),
   tokenHash: text("token_hash").notNull().unique(),
   familyId: uuid("family_id").notNull(),
   parentId: uuid("parent_id"),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   revokedAt: timestamp("revoked_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
 // ---------------------------------------------------------------------------
@@ -49,8 +67,12 @@ export const webhookSubscriptions = pgTable("webhook_subscriptions", {
   events: jsonb("events").notNull().default([]),
   /** Whether this subscription is currently active */
   active: boolean("active").notNull().default(true),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
 /**
@@ -86,13 +108,19 @@ export const webhookDeliveries = pgTable("webhook_deliveries", {
   /** Number of delivery attempts made so far */
   attempt: integer("attempt").notNull().default(0),
   /** Timestamp after which the next retry is allowed */
-  nextRetryAt: timestamp("next_retry_at", { withTimezone: true }).notNull().defaultNow(),
+  nextRetryAt: timestamp("next_retry_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
   /** HTTP status code of the last attempt (null if not yet attempted) */
   lastStatusCode: integer("last_status_code"),
   /** Truncated response body or error message from the last attempt */
   lastError: text("last_error"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
 export const markets = pgTable("markets", {
@@ -100,7 +128,9 @@ export const markets = pgTable("markets", {
   question: text("question").notNull(),
   status: text("status").notNull(),
   resolutionOutcome: text("resolution_outcome"),
-  resolutionTime: timestamp("resolution_time", { withTimezone: true }).notNull(),
+  resolutionTime: timestamp("resolution_time", {
+    withTimezone: true,
+  }).notNull(),
   /** Populated atomically when the market_resolved on-chain event is processed. */
   winningOutcome: text("winning_outcome"),
   metadata: jsonb("metadata"),
@@ -111,30 +141,42 @@ export const markets = pgTable("markets", {
 
 export const marketAuditLog = pgTable("market_audit_log", {
   id: uuid("id").primaryKey().defaultRandom(),
-  marketId: text("market_id").notNull().references(() => markets.id),
+  marketId: text("market_id")
+    .notNull()
+    .references(() => markets.id),
   adminAddress: text("admin_address").notNull(),
   action: text("action").notNull(),
   beforeState: jsonb("before_state").notNull(),
   afterState: jsonb("after_state").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
 export const predictions = pgTable("predictions", {
   id: uuid("id").primaryKey().defaultRandom(),
-  marketId: text("market_id").notNull().references(() => markets.id),
-  userId: uuid("user_id").notNull().references(() => users.id),
+  marketId: text("market_id")
+    .notNull()
+    .references(() => markets.id),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id),
   outcome: text("outcome").notNull(),
   amount: text("amount").notNull(),
   status: text("status").notNull().default("pending"),
   /** Set to "won" or "lost" in the same transaction that resolves the parent market. */
   result: text("result"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
 export const indexerCursor = pgTable("indexer_cursor", {
   id: integer("id").primaryKey(),
   lastLedger: integer("last_ledger").notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
 /**
@@ -153,19 +195,44 @@ export const idempotencyRecords = pgTable(
     responseBody: jsonb("response_body").notNull(),
     /** Optional headers to replay (e.g. Location) */
     responseHeaders: jsonb("response_headers").notNull().default({}),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   },
-  (t) => ({ idempotencyExpiresIdx: index("idempotency_expires_idx").on(t.expiresAt) }),
+  (t) => ({
+    idempotencyExpiresIdx: index("idempotency_expires_idx").on(t.expiresAt),
+  }),
 );
 
-
-
 /**
- * Stores audit log entries for all significant backend actions.
- * Includes optional rate-limit context when the entry was triggered
- * by or during a rate-limited request.
+ * Stores per-user notification channel preferences for each supported category.
+ * Missing rows imply the default state: enabled.
  */
+export const notificationPreferences = pgTable(
+  "notification_preferences",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    category: text("category").notNull(),
+    channel: text("channel").notNull(),
+    enabled: boolean("enabled").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.userId, t.category, t.channel] }),
+    notificationPreferencesUserIdIdx: index(
+      "notification_preferences_user_id_idx",
+    ).on(t.userId),
+  }),
+);
+
 export const auditLogs = pgTable(
   "audit_logs",
   {
@@ -183,11 +250,14 @@ export const auditLogs = pgTable(
      * Shape: { limit: number, remaining: number, resetAt: string, blocked: boolean }
      */
     rateLimitContext: jsonb("rate_limit_context"),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (t) => ({
-    auditLogsCorrelationIdx: index("audit_logs_correlation_idx").on(t.correlationId),
+    auditLogsCorrelationIdx: index("audit_logs_correlation_idx").on(
+      t.correlationId,
+    ),
     auditLogsCreatedAtIdx: index("audit_logs_created_at_idx").on(t.createdAt),
   }),
 );
-

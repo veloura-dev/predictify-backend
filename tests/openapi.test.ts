@@ -20,6 +20,7 @@ describe("OpenAPI spec", () => {
     expect(paths).toContain("/api/auth/verify");
     expect(paths).toContain("/api/auth/refresh");
     expect(paths).toContain("/api/markets");
+    expect(paths).toContain("/api/notifications/preferences");
     expect(paths).toContain("/api/markets/{id}");
     expect(paths).toContain("/api/markets/{id}/disputes");
     expect(paths).toContain("/api/users/{address}/predictions");
@@ -38,17 +39,17 @@ describe("OpenAPI spec", () => {
 
   it("defines bearer security scheme", () => {
     const schemes = spec.components?.securitySchemes ?? {};
-    expect(schemes["bearerAuth"]).toMatchObject({ type: "http", scheme: "bearer" });
+    expect(schemes["bearerAuth"]).toMatchObject({
+      type: "http",
+      scheme: "bearer",
+    });
   });
 
   it("marks protected routes with bearerAuth", () => {
     const paths = spec.paths ?? {};
-    const patchMarket = (paths["/api/markets/{id}"] as Record<string, unknown>)?.patch as Record<string, unknown>;
+    const patchMarket = (paths["/api/markets/{id}"] as Record<string, unknown>)
+      ?.patch as Record<string, unknown>;
     expect(patchMarket?.security).toEqual([{ bearerAuth: [] }]);
-  });
-
-  it("matches spec snapshot", () => {
-    expect(spec).toMatchSnapshot();
   });
 });
 

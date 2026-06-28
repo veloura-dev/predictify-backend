@@ -321,6 +321,79 @@ registry.registerPath({
   },
 });
 
+// ── /api/notifications ──────────────────────────────────────────────────────
+
+const NotificationChannel = z
+  .enum(["email", "webhook"])
+  .openapi("NotificationChannel");
+const NotificationCategory = z
+  .enum(["market_resolved", "claim_ready", "dispute_opened"])
+  .openapi("NotificationCategory");
+const NotificationPreference = z
+  .object({
+    category: NotificationCategory,
+    channel: NotificationChannel,
+    enabled: z.boolean(),
+  })
+  .openapi("NotificationPreference");
+const NotificationPreferencesResponse = z
+  .object({ data: z.object({ preferences: z.array(NotificationPreference) }) })
+  .openapi("NotificationPreferencesResponse");
+const PatchNotificationPreferencesRequest = z
+  .object({ preferences: z.array(NotificationPreference).min(1) })
+  .openapi("PatchNotificationPreferencesRequest");
+
+registry.registerPath({
+  method: "get",
+  path: "/api/notifications/preferences",
+  tags: ["Notifications"],
+  summary: "Get the authenticated user's notification preferences",
+  security: [{ bearerAuth: [] }],
+  responses: {
+    200: {
+      description: "Notification preferences",
+      content: {
+        "application/json": { schema: NotificationPreferencesResponse },
+      },
+    },
+    401: {
+      description: "Unauthorized",
+      content: { "application/json": { schema: ErrorBody } },
+    },
+  },
+});
+
+registry.registerPath({
+  method: "patch",
+  path: "/api/notifications/preferences",
+  tags: ["Notifications"],
+  summary: "Update notification preferences for the authenticated user",
+  security: [{ bearerAuth: [] }],
+  request: {
+    body: {
+      content: {
+        "application/json": { schema: PatchNotificationPreferencesRequest },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Updated notification preferences",
+      content: {
+        "application/json": { schema: NotificationPreferencesResponse },
+      },
+    },
+    400: {
+      description: "Validation error",
+      content: { "application/json": { schema: ValidationErrorBody } },
+    },
+    401: {
+      description: "Unauthorized",
+      content: { "application/json": { schema: ErrorBody } },
+    },
+  },
+});
+
 // ── /api/users ───────────────────────────────────────────────────────────────
 
 const PredictionStatus = z.enum([
@@ -496,87 +569,6 @@ registry.registerPath({
     },
     429: {
       description: "Rate limit exceeded",
-      content: { "application/json": { schema: ErrorBody } },
-    },
-  },
-});
-
-const ReconciliationSidePosition = z
-  .object({
-    stellarAddress: z.string(),
-    outcome: z.string(),
-    amount: z.string(),
-  })
-  .openapi("ReconciliationSidePosition");
-
-const ReconciliationDiffEntry = z
-  .object({
-    key: z.object({ stellarAddress: z.string(), outcome: z.string() }),
-    dbAmount: z.string(),
-    onChainAmount: z.string().nullable(),
-    difference: z.string().nullable(),
-    status: z.enum(["match", "mismatch", "missing_on_chain", "missing_in_db"]),
-  })
-  .openapi("ReconciliationDiffEntry");
-
-const MarketReconciliation = z
-  .object({
-    marketId: z.string(),
-    correlationId: z.string(),
-    generatedAt: z.string().datetime(),
-    status: z.enum(["ok", "partial"]),
-    dbSnapshot: z.object({
-      positions: z.array(ReconciliationSidePosition),
-      totalAmount: z.string(),
-    }),
-    onChainSnapshot: z.object({
-      positions: z.array(ReconciliationSidePosition),
-      totalAmount: z.string(),
-      available: z.boolean(),
-      source: z.string(),
-      unavailableReason: z.string().nullable(),
-    }),
-    summary: z.object({
-      totalKeys: z.number().int(),
-      matches: z.number().int(),
-      mismatches: z.number().int(),
-      missingOnChain: z.number().int(),
-      missingInDb: z.number().int(),
-    }),
-    diffs: z.array(ReconciliationDiffEntry),
-  })
-  .openapi("MarketReconciliation");
-
-registry.registerPath({
-  method: "get",
-  path: "/api/admin/recon/markets/{id}",
-  tags: ["Admin"],
-  summary: "Inspect DB vs on-chain reconciliation for a market",
-  security: [{ bearerAuth: [] }],
-  request: { params: z.object({ id: z.string().min(1) }) },
-  responses: {
-    200: {
-      description: "Structured reconciliation diff",
-      content: {
-        "application/json": {
-          schema: z.object({ data: MarketReconciliation }),
-        },
-      },
-    },
-    400: {
-      description: "Validation error",
-      content: { "application/json": { schema: ValidationErrorBody } },
-    },
-    403: {
-      description: "Forbidden",
-      content: { "application/json": { schema: ErrorBody } },
-    },
-    404: {
-      description: "Not found",
-      content: { "application/json": { schema: ErrorBody } },
-    },
-    500: {
-      description: "Internal error",
       content: { "application/json": { schema: ErrorBody } },
     },
   },

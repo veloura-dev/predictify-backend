@@ -4,28 +4,29 @@ import pinoHttp from "pino-http";
 import { v4 as uuidv4 } from "uuid";
 import { env } from "./config/env";
 import { logger } from "./config/logger";
-import { metricsMiddleware } from "./metrics/httpMetrics";
-import { idempotency } from "./middleware/idempotency";
-import { healthRouter } from "./routes/health";
-import { authRouter } from "./routes/auth";
-import { marketsRouter } from "./routes/markets";
-import { usersRouter } from "./routes/users";
-import { socialRouter } from "./routes/social";
-import { authRouter } from "./routes/auth";
-import { leaderboardRouter } from "./routes/leaderboard";
-import { createDocsRouter } from "./routes/docs";
-import { errorHandler } from "./middleware/errorHandler";
-import { captchaGate } from "./middleware/captcha";
-import { requestContextStorage } from "./lib/requestContext";
-import { REQUEST_ID_HEADER } from "./lib/http";
-import { register } from "./metrics/registry";
 import { connectWithRetry, closeDb } from "./db/client";
+import { REQUEST_ID_HEADER } from "./lib/http";
+import { requestContextStorage } from "./lib/requestContext";
+import { errorHandler } from "./middleware/errorHandler";
+import { idempotency } from "./middleware/idempotency";
+import { metricsMiddleware } from "./metrics/httpMetrics";
+import { register } from "./metrics/registry";
+import { authRouter } from "./routes/auth";
+import { createDocsRouter } from "./routes/docs";
+import { healthRouter } from "./routes/health";
+import { leaderboardRouter } from "./routes/leaderboard";
+import { marketsRouter } from "./routes/markets";
+import { notificationsRouter } from "./routes/notifications";
+import { socialRouter } from "./routes/social";
+import { usersRouter } from "./routes/users";
 import { stopScheduler } from "./services/scheduler";
 import { adminAuditRouter } from "./routes/admin/audit";
 
 const docsEnabled = env.NODE_ENV !== "production" || process.env.ENABLE_DOCS === "true";
 
 const REQUEST_ID_MAX_LENGTH = 64;
+const docsEnabled =
+  env.NODE_ENV !== "production" || process.env.ENABLE_DOCS === "true";
 
 function sanitizeRequestId(raw: string): string | undefined {
   const sanitized = raw
@@ -41,8 +42,11 @@ export function createApp(): express.Express {
     app.set("trust proxy", true);
   }
 
-  app.use("/docs", createDocsCspMiddleware(), createDocsRouter());
-  app.use(createGlobalCspMiddleware());
+  if (docsEnabled) {
+    app.use("/docs", createDocsRouter());
+  }
+
+  app.use(helmet());
   app.use(express.json({ limit: "256kb" }));
 
   app.use(
@@ -65,7 +69,7 @@ export function createApp(): express.Express {
       res: express.Response,
       next: express.NextFunction,
     ) => {
-      const requestId = req.id as string;
+      const requestId = String(req.id);
       res.setHeader(REQUEST_ID_HEADER, requestId);
       requestContextStorage.run({ requestId }, next);
     },
@@ -84,6 +88,7 @@ export function createApp(): express.Express {
   app.use("/api/auth", authRouter);
   app.use("/api/markets", marketsRouter);
   app.use("/api/leaderboard", leaderboardRouter);
+  app.use("/api/notifications", notificationsRouter);
   app.use("/api/users", socialRouter);
   app.use("/api/users", usersRouter);
   app.use("/api/admin/audit", adminAuditRouter);
