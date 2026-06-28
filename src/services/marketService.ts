@@ -1,6 +1,7 @@
 import { db } from "../db";
 import { markets, marketAuditLog } from "../db/schema";
 import { eq } from "drizzle-orm";
+import { emitMarketEvent, LogEvent } from "../logging/events";
 
 export interface Market {
   id: string;
@@ -37,7 +38,7 @@ export async function updateMarket(
   expectedVersion: number,
   adminAddress: string
 ): Promise<any> {
-  return await db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const existing = await tx.select().from(markets).where(eq(markets.id, id)).limit(1);
     if (existing.length === 0) {
       const err = new Error("Market not found");
@@ -78,5 +79,16 @@ export async function updateMarket(
 
     return updated[0];
   });
+
+  // Structured log event – emitted from service layer after successful commit.
+  // Includes correlation ID via requestContext (see logging/events.ts).
+  emitMarketEvent(LogEvent.MARKET_UPDATED, {
+    marketId: id,
+    actor: adminAddress,
+    version: result.version,
+    fieldsUpdated: Object.keys(patch),
+  });
+
+  return result;
 }
 
