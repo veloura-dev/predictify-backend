@@ -6,6 +6,7 @@ import { env } from "./config/env";
 import { logger } from "./config/logger";
 import { metricsMiddleware } from "./metrics/httpMetrics";
 import { idempotency } from "./middleware/idempotency";
+import { defaultBodyLimitMiddleware, webhookBodyLimitMiddleware } from "./middleware/bodyLimit";
 import { healthRouter } from "./routes/health";
 import dependenciesRouter from "./routes/healthz/dependencies";
 import { authRouter } from "./routes/auth";
@@ -34,7 +35,7 @@ function sanitizeRequestId(raw: string): string | undefined {
   return sanitized.length > 0 ? sanitized : undefined;
 }
 
-export function createApp(): express.Express {
+export function createApp(_options?: unknown): express.Express {
   const app = express();
 
   if (env.TRUST_PROXY) {
@@ -46,7 +47,8 @@ export function createApp(): express.Express {
   }
 
   app.use(helmet());
-  app.use(express.json({ limit: "256kb" }));
+  app.use("/api/admin/webhooks", webhookBodyLimitMiddleware);
+  app.use(defaultBodyLimitMiddleware);
 
   app.use(
     pinoHttp({
