@@ -141,12 +141,64 @@ export const predictions = pgTable("predictions", {
   outcome: text("outcome").notNull(),
   amount: text("amount").notNull(),
   txHash: text("tx_hash").notNull().default(""),
+  /**
+   * Optional on-chain funding source (e.g. the account that originally
+   * funded this user's wallet). Used by the fraud-signal detector to
+   * connect addresses that share a funder. Nullable so legacy rows and
+   * predictions whose funder is unknown remain valid.
+   */
+  fundingSource: text("funding_source"),
   status: text("status").notNull().default("pending"),
   result: text("result"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
 });
+
+/**
+ * fraud_flags — persisted output of the fraud-signal background job.
+ *
+ * Each row represents a single (cluster, user) finding. A `cluster_key`
+ * groups all addresses the union-find algorithm collapsed together,
+ * `reason` is a short machine code, and `evidence` carries the structured
+ * payload (graph edges, shared funders, repeated patterns) for admin review.
+ *
+ * `(cluster_key, user_id)` is unique so re-running the detector is
+ * idempotent and never produces duplicates for the same finding.
+ */
+export const fraudFlags = pgTable(
+  "fraud_flags",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clusterKey: text("cluster_key").notNull(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    stellarAddress: text("stellar_address").notNull(),
+    reason: text("reason").notNull(),
+    evidence: jsonb("evidence").notNull().default({}),
+    score: integer("score").notNull().default(0),
+    status: text("status").notNull().default("open"),
+    reviewedBy: text("reviewed_by"),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    correlationId: text("correlation_id"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    fraudFlagsStatusCreatedIdx: index("fraud_flags_status_created_idx").on(
+      t.status,
+      t.createdAt,
+    ),
+    fraudFlagsAddressIdx: index("fraud_flags_address_idx").on(t.stellarAddress),
+  }),
+);
+
+export type FraudFlag = typeof fraudFlags.$inferSelect;
 
 export const claims = pgTable("claims", {
   id: uuid("id").primaryKey().defaultRandom(),

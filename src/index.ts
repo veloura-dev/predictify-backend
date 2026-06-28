@@ -16,6 +16,7 @@ import { createDocsRouter } from "./routes/docs";
 import { notificationsRouter } from "./routes/notifications";
 import { socialRouter } from "./routes/social";
 import { adminAuditRouter } from "./routes/admin/audit";
+import { adminFraudRouter } from "./routes/admin/fraud";
 import { errorHandler } from "./middleware/errorHandler";
 import { requestContextStorage } from "./lib/requestContext";
 import { REQUEST_ID_HEADER } from "./lib/http";
@@ -92,6 +93,7 @@ export function createApp(): express.Express {
   app.use("/api/users", socialRouter);
   app.use("/api/users", usersRouter);
   app.use("/api/admin/audit", adminAuditRouter);
+  app.use("/api/admin/fraud", adminFraudRouter);
 
   app.get("/metrics", async (req, res) => {
     const metricsAuthToken = process.env.METRICS_AUTH_TOKEN;
