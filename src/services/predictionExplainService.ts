@@ -3,7 +3,6 @@ import { db } from "../db";
 import { predictions, markets } from "../db/schema";
 import { getPool } from "../db/client";
 import { NotFoundError } from "../errors";
-import type { Response } from "express";
 
 export interface ResolutionStep {
   step: number;

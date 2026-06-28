@@ -36,7 +36,7 @@ export interface NotificationPrefsRepository {
 
 export const notificationPrefsRepository: NotificationPrefsRepository = {
   async listByUser(userId) {
-    return db
+    const rows = await db
       .select({
         userId: notificationPreferences.userId,
         category: notificationPreferences.category,
@@ -46,6 +46,7 @@ export const notificationPrefsRepository: NotificationPrefsRepository = {
       })
       .from(notificationPreferences)
       .where(eq(notificationPreferences.userId, userId));
+    return rows as NotificationPreferenceRow[];
   },
 
   async upsertMany(rows) {
@@ -91,7 +92,7 @@ export const notificationPrefsRepository: NotificationPrefsRepository = {
       )
       .limit(1);
 
-    return rows[0] ?? null;
+    return (rows[0] ?? null) as NotificationPreferenceRow | null;
   },
 };
 

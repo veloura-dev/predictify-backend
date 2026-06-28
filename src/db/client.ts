@@ -18,6 +18,24 @@ pool.on("error", (err) => {
 
 export const db = drizzle(pool, { schema });
 
+export type Database = any;
+export type DB = typeof db;
+export type Db = typeof db;
+
+let overrideDb: any = null;
+
+export function setDbForTests(testDb: any): void {
+  overrideDb = testDb;
+}
+
+export function getDb(): any {
+  return overrideDb ?? db;
+}
+
+export function getPool(): Pool {
+  return pool;
+}
+
 const MAX_RETRIES = 5;
 const BASE_DELAY_MS = 1000;
 
