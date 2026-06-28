@@ -32,21 +32,13 @@ authRouter.post("/refresh", async (req, res, next) => {
       return;
     }
 
-    const tokens = await rotateRefreshToken(refreshToken);
-    res.json(tokens);
-  } catch (err) {
-    if (err instanceof RefreshTokenError) {
-      logger.warn({ code: err.code }, "token_refresh_failed");
-
-      if (err.code === "reuseDetected") {
-        res.status(403).json({ error: { code: "token_reuse_detected" } });
-        return;
-      }
-
-      res.status(401).json({ error: { code: "invalid_token" } });
-      return;
+    const result = await rotateRefreshToken(refreshToken);
+    if (!result.ok) {
+      throw result.error;
     }
 
+    res.json(result.value);
+  } catch (err) {
     next(err);
   }
 });
@@ -65,10 +57,6 @@ authRouter.post("/logout", async (req, res, next) => {
     await revokeFamily(refreshToken);
     res.status(204).send();
   } catch (err) {
-    if (err instanceof RefreshTokenError) {
-      res.status(401).json({ error: { code: "invalid_token" } });
-      return;
-    }
     next(err);
   }
 });
@@ -122,12 +110,12 @@ authRouter.post("/verify", async (req, res, next) => {
       parsed.data.signature,
     );
 
-    res.status(200).json(result);
-  } catch (e) {
-    if (e instanceof AuthVerifyError) {
-      res.status(e.status).json({ error: { code: e.code } });
-      return;
+    if (!result.ok) {
+      throw result.error;
     }
+
+    res.status(200).json(result.value);
+  } catch (e) {
     next(e);
   }
 });

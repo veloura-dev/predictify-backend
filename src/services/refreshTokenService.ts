@@ -5,6 +5,7 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { env } from "../config/env";
 import { logger } from "../config/logger";
+import { Result, ok, err } from "../errors/RouteError";
 
 const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const REFRESH_TOKEN_ERROR_MESSAGES = {
@@ -15,6 +16,10 @@ const REFRESH_TOKEN_ERROR_MESSAGES = {
 
 export type RefreshTokenErrorCode = keyof typeof REFRESH_TOKEN_ERROR_MESSAGES;
 
+/**
+ * @deprecated Use RouteError discriminated union instead.
+ * Kept for backward compatibility during migration.
+ */
 export class RefreshTokenError extends Error {
   constructor(public readonly code: RefreshTokenErrorCode) {
     super(REFRESH_TOKEN_ERROR_MESSAGES[code]);
@@ -101,11 +106,14 @@ export async function issueRefreshToken(
 
 export async function rotateRefreshToken(
   rawToken: string
-): Promise<{ accessToken: string; refreshToken: string }> {
+): Promise<Result<{ accessToken: string; refreshToken: string }>> {
   const tokenRecord = await findRefreshTokenByRawToken(rawToken);
 
   if (!tokenRecord) {
-    throw new RefreshTokenError("invalid");
+    return err({
+      kind: "Unauthorized",
+      message: "Invalid refresh token",
+    });
   }
 
   if (tokenRecord.revokedAt !== null) {
@@ -117,17 +125,27 @@ export async function rotateRefreshToken(
     // A rotated token being presented again suggests theft, so the active branch is invalidated.
     await revokeTokenFamilyById(tokenRecord.familyId);
 
-    throw new RefreshTokenError("reuseDetected");
+    return err({
+      kind: "Forbidden",
+      message: "Refresh token reuse detected",
+      reason: "Token has already been used",
+    });
   }
 
   if (tokenRecord.expiresAt < new Date()) {
-    throw new RefreshTokenError("expired");
+    return err({
+      kind: "Unauthorized",
+      message: "Refresh token expired",
+    });
   }
 
   const user = await findUserById(tokenRecord.userId);
 
   if (!user) {
-    throw new RefreshTokenError("invalid");
+    return err({
+      kind: "Unauthorized",
+      message: "Invalid refresh token",
+    });
   }
 
   const now = new Date();
@@ -144,10 +162,10 @@ export async function rotateRefreshToken(
 
   const accessToken = generateAccessToken(user.id, user.stellarAddress);
 
-  return {
+  return ok({
     accessToken,
     refreshToken: newRawRefreshToken,
-  };
+  });
 }
 
 export async function revokeFamily(rawToken: string): Promise<void> {
