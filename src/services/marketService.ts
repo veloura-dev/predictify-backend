@@ -1,6 +1,6 @@
 /* eslint-disable */ 
 /* eslint-disable no-empty */ 
-/* eslint-disable @typescript-eslint/no-explicit-any */ 
+  
 /* eslint-disable @typescript-eslint/no-explicit-any */ 
 import { db, getDb } from "../db/client";
 import { markets, marketAuditLog } from "../db/schema";
